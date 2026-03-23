@@ -1,256 +1,223 @@
 // ═══════════════════════════════════════════════════════════════
-// MedBuddy — firebase-auth.js
-// Real Firebase Authentication: Google · Email+Verify · Phone OTP
-//
-// SETUP:
-//   1. Replace firebaseConfig values below with yours from:
-//      Firebase Console → Project Settings → General → Your Apps
-//   2. Enable in Firebase Console → Authentication → Sign-in method:
-//      ✅ Google   ✅ Email/Password   ✅ Phone
-//   3. For Phone auth — add your domain to:
-//      Firebase Console → Authentication → Settings → Authorised domains
+// MedBuddy — firebase-auth.js (Clerk Edition)
+// Real Auth: Google · Email+OTP · Phone OTP — powered by Clerk
 // ═══════════════════════════════════════════════════════════════
 
-// ── 🔑 YOUR FIREBASE CONFIG — fill these in ─────────────────
-const firebaseConfig = {
-  apiKey:            "YOUR_API_KEY",
-  authDomain:        "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId:         "YOUR_PROJECT_ID",
-  storageBucket:     "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId:             "YOUR_APP_ID",
-};
-// ────────────────────────────────────────────────────────────
+const CLERK_PUBLISHABLE_KEY = "sk_test_Nt5NGClCQd78fxbM5n4CRn0BMMIUR3gp3x0b1xr7uM";
 
-// ── Init ─────────────────────────────────────────────────────
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+// ── Load Clerk SDK ────────────────────────────────────────────
+(function loadClerk() {
+  const s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js';
+  s.onload  = () => initClerk();
+  s.onerror = () => { console.warn('Clerk failed — demo mode'); };
+  document.head.appendChild(s);
+})();
 
 // ── State ─────────────────────────────────────────────────────
+let clerk              = null;
+let signUpRes          = null;
+let signInRes          = null;
+let phoneSignInRes     = null;
 let currentUser        = null;
-let confirmationResult = null;   // Phone OTP result
-let recaptchaVerifier  = null;   // reCAPTCHA instance
 
-// ── Auto-login if already signed in ──────────────────────────
-auth.onAuthStateChanged(user => {
-  if (user) {
-    console.log('🔓 Already signed in:', user.email || user.phoneNumber);
-    currentUser = user;
-    _hideLoginShowApp(user.displayName || user.email || user.phoneNumber);
+// ── Init ──────────────────────────────────────────────────────
+async function initClerk() {
+  try {
+    clerk = new window.Clerk(CLERK_PUBLISHABLE_KEY);
+    await clerk.load();
+    if (clerk.user) {
+      _onLoginSuccess(clerk.user); // already signed in
+    }
+    console.log('✅ Clerk ready');
+  } catch (e) {
+    console.warn('Clerk init error:', e.message);
   }
-});
+}
 
 // ════════════════════════════════════════════════════════════
-// PANEL NAVIGATION
+// PANEL NAV
 // ════════════════════════════════════════════════════════════
 function showPanel(id) {
   clearError();
   document.querySelectorAll('.lg-panel').forEach(p => {
-    p.style.display = 'none';
-    p.style.animation = 'none';
+    p.style.display = 'none'; p.style.animation = 'none';
   });
   const el = document.getElementById(id);
   if (!el) return;
   el.style.display = 'block';
-  void el.offsetWidth; // force reflow for animation restart
+  void el.offsetWidth;
   el.style.animation = '';
 }
 
 // ════════════════════════════════════════════════════════════
-// 1. GOOGLE LOGIN
+// 1. GOOGLE
 // ════════════════════════════════════════════════════════════
 function loginGoogle() {
+  if (!clerk) { _demoLogin('Google User'); return; }
   const btn = document.querySelector('.lg-social.google');
   _setBtnLoading(btn, 'Connecting to Google…');
 
-  const provider = new firebase.auth.GoogleAuthProvider();
-  provider.addScope('email');
-  provider.addScope('profile');
-
-  auth.signInWithPopup(provider)
-    .then(result => {
-      console.log('✅ Google OK:', result.user.displayName);
-      _onLoginSuccess(result.user);
-    })
-    .catch(err => {
-      _resetGoogleBtn(btn);
-      if (err.code === 'auth/popup-closed-by-user' ||
-          err.code === 'auth/cancelled-popup-request') return;
-      const msgs = {
-        'auth/popup-blocked':
-          'Popup was blocked. Please allow popups for this site.',
-        'auth/network-request-failed':
-          'Network error. Check your connection.',
-      };
-      showError(msgs[err.code] || 'Google sign-in failed: ' + err.message);
-    });
+  clerk.authenticateWithRedirect({
+    strategy: 'oauth_google',
+    redirectUrl: window.location.href,
+    redirectUrlComplete: window.location.href,
+  }).catch(err => {
+    _resetGoogleBtn(btn);
+    showError('Google sign-in failed. Please try again.');
+  });
 }
 
 function _resetGoogleBtn(btn) {
+  if (!btn) return;
   btn.disabled = false;
-  btn.innerHTML = `
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-    </svg>
-    Continue with Google`;
+  btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+  </svg> Continue with Google`;
 }
 
 // ════════════════════════════════════════════════════════════
-// 2. EMAIL + PASSWORD + EMAIL VERIFICATION
+// 2. EMAIL + VERIFICATION OTP
 // ════════════════════════════════════════════════════════════
 function validateEmail() {
   const email = document.getElementById('inp-email').value.trim();
   const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   const btn   = document.getElementById('email-next-btn');
-  const pwField = document.getElementById('pw-field');
-
-  if (valid) {
-    pwField.style.display = 'block';
-    btn.textContent = 'Sign In / Sign Up';
-  } else {
-    pwField.style.display = 'none';
-    btn.textContent = 'Continue';
-  }
+  const pwf   = document.getElementById('pw-field');
+  if (valid) { pwf.style.display = 'block'; btn.textContent = 'Continue'; }
+  else       { pwf.style.display = 'none'; }
   btn.disabled = !valid;
 }
 
-function emailNext() {
+async function emailNext() {
+  if (!clerk) { _demoLogin('Email User'); return; }
+
   const email = document.getElementById('inp-email').value.trim();
   const pw    = document.getElementById('inp-pw').value;
   const btn   = document.getElementById('email-next-btn');
-
   clearError();
 
-  if (!pw || pw.length < 6) {
-    showError('Password must be at least 6 characters.');
-    return;
-  }
-
+  if (!pw || pw.length < 8) { showError('Password must be at least 8 characters.'); return; }
   _setBtnLoading(btn, 'Please wait…');
 
-  // Try sign-in first; if user not found → sign up
-  auth.signInWithEmailAndPassword(email, pw)
-    .then(result => {
-      const user = result.user;
-      if (!user.emailVerified) {
-        // Signed in but email not verified — show verification screen
-        _showEmailVerifyScreen(user, btn);
-      } else {
-        _onLoginSuccess(user);
-      }
-    })
-    .catch(err => {
-      if (err.code === 'auth/user-not-found' ||
-          err.code === 'auth/invalid-credential' ||
-          err.code === 'auth/invalid-email') {
-        // Create new account
-        auth.createUserWithEmailAndPassword(email, pw)
-          .then(result => {
-            // Send verification email for new accounts
-            result.user.sendEmailVerification()
-              .then(() => _showEmailVerifyScreen(result.user, btn))
-              .catch(() => _onLoginSuccess(result.user)); // fallback: skip verify
-          })
-          .catch(createErr => {
-            _resetBtn(btn, 'Sign In / Sign Up');
-            const msgs = {
-              'auth/email-already-in-use': 'Account exists. Check your password.',
-              'auth/weak-password':        'Password must be at least 6 characters.',
-              'auth/invalid-email':        'Please enter a valid email address.',
-            };
-            showError(msgs[createErr.code] || createErr.message);
-          });
-      } else {
-        _resetBtn(btn, 'Sign In / Sign Up');
-        const msgs = {
-          'auth/wrong-password':    'Incorrect password. Try again.',
-          'auth/too-many-requests': 'Too many attempts. Wait a moment or reset password.',
-          'auth/user-disabled':     'This account has been disabled.',
-        };
-        showError(msgs[err.code] || err.message);
-      }
-    });
+  // ── Try sign-in first ──
+  try {
+    signInRes = await clerk.client.signIn.create({ identifier: email, password: pw });
+    if (signInRes.status === 'complete') {
+      await clerk.setActive({ session: signInRes.createdSessionId });
+      _onLoginSuccess(clerk.user);
+    } else {
+      _resetBtn(btn, 'Continue');
+      showError('Something went wrong. Please try again.');
+    }
+    return;
+  } catch (e) {
+    // Not found or wrong pw → try sign-up below
+    if (!['form_identifier_not_found','form_password_incorrect',
+          'form_password_validation_failed'].includes(e.errors?.[0]?.code)) {
+      _resetBtn(btn, 'Continue');
+      showError(e.errors?.[0]?.longMessage || e.errors?.[0]?.message || 'Sign-in failed.');
+      return;
+    }
+  }
+
+  // ── Try sign-up ──
+  try {
+    signUpRes = await clerk.client.signUp.create({ emailAddress: email, password: pw });
+    await signUpRes.prepareEmailAddressVerification({ strategy: 'email_code' });
+    _resetBtn(btn, 'Continue');
+    _showEmailOTPScreen(email);
+  } catch (e) {
+    _resetBtn(btn, 'Continue');
+    const msgs = {
+      'form_identifier_exists':             'Account exists — check your password.',
+      'form_password_pwned':                'This password is too common. Choose a stronger one.',
+      'form_password_length_too_short':     'Password too short — minimum 8 characters.',
+    };
+    showError(msgs[e.errors?.[0]?.code] || e.errors?.[0]?.longMessage || 'Sign-up failed.');
+  }
 }
 
-function _showEmailVerifyScreen(user, btn) {
-  _resetBtn(btn, 'Sign In / Sign Up');
-
-  // Replace panel content with verification message
-  const panel = document.getElementById('panel-email');
-  panel.innerHTML = `
-    <div style="text-align:center;padding:10px 0;">
-      <div style="width:56px;height:56px;background:linear-gradient(135deg,#ede8f8,#dceef7);border-radius:16px;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:1.6rem;">📧</div>
-      <h3 style="font-family:'Cormorant Garamond',serif;font-size:1.3rem;font-weight:600;color:#2e2640;margin-bottom:8px;">Verify your email</h3>
-      <p style="font-size:.83rem;color:#5a5070;line-height:1.6;margin-bottom:6px;">
-        We sent a verification link to<br>
-        <strong style="color:#7c6a9e;">${user.email}</strong>
-      </p>
-      <p style="font-size:.78rem;color:#9990b0;margin-bottom:24px;">Open the email and click the link, then come back here.</p>
-
-      <button class="lg-btn" id="verify-check-btn" onclick="checkEmailVerified()">
-        I've verified — Continue
-      </button>
-
-      <p style="font-size:.74rem;color:#9990b0;margin-top:14px;">
-        Didn't get it?
-        <a href="#" onclick="resendVerification();return false;" style="color:#9b87c5;text-decoration:none;">Resend email</a>
+function _showEmailOTPScreen(email) {
+  document.getElementById('panel-email').innerHTML = `
+    <div style="text-align:center;padding:6px 0;">
+      <div style="width:52px;height:52px;background:linear-gradient(135deg,#ede8f8,#dceef7);border-radius:14px;margin:0 auto 13px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;">📧</div>
+      <h3 style="font-family:'Cormorant Garamond',serif;font-size:1.25rem;font-weight:600;color:#2e2640;margin-bottom:6px;">Check your inbox</h3>
+      <p style="font-size:.81rem;color:#5a5070;line-height:1.6;margin-bottom:4px;">We sent a 6-digit code to<br><strong style="color:#7c6a9e;">${email}</strong></p>
+      <p style="font-size:.75rem;color:#9990b0;margin-bottom:18px;">Enter it below to verify your email.</p>
+      <div style="display:flex;gap:8px;justify-content:center;margin-bottom:16px;">
+        <input class="otp-box" type="text" inputmode="numeric" maxlength="1" oninput="eOtpMove(this,0)" onkeydown="eOtpKey(event,0)" style="width:42px;aspect-ratio:1;text-align:center;border:1.5px solid rgba(176,157,207,.38);border-radius:11px;background:rgba(255,255,255,.9);font-size:1.2rem;font-weight:600;color:#7c6a9e;outline:none;font-family:DM Sans,sans-serif;"/>
+        <input class="otp-box" type="text" inputmode="numeric" maxlength="1" oninput="eOtpMove(this,1)" onkeydown="eOtpKey(event,1)" style="width:42px;aspect-ratio:1;text-align:center;border:1.5px solid rgba(176,157,207,.38);border-radius:11px;background:rgba(255,255,255,.9);font-size:1.2rem;font-weight:600;color:#7c6a9e;outline:none;font-family:DM Sans,sans-serif;"/>
+        <input class="otp-box" type="text" inputmode="numeric" maxlength="1" oninput="eOtpMove(this,2)" onkeydown="eOtpKey(event,2)" style="width:42px;aspect-ratio:1;text-align:center;border:1.5px solid rgba(176,157,207,.38);border-radius:11px;background:rgba(255,255,255,.9);font-size:1.2rem;font-weight:600;color:#7c6a9e;outline:none;font-family:DM Sans,sans-serif;"/>
+        <input class="otp-box" type="text" inputmode="numeric" maxlength="1" oninput="eOtpMove(this,3)" onkeydown="eOtpKey(event,3)" style="width:42px;aspect-ratio:1;text-align:center;border:1.5px solid rgba(176,157,207,.38);border-radius:11px;background:rgba(255,255,255,.9);font-size:1.2rem;font-weight:600;color:#7c6a9e;outline:none;font-family:DM Sans,sans-serif;"/>
+        <input class="otp-box" type="text" inputmode="numeric" maxlength="1" oninput="eOtpMove(this,4)" onkeydown="eOtpKey(event,4)" style="width:42px;aspect-ratio:1;text-align:center;border:1.5px solid rgba(176,157,207,.38);border-radius:11px;background:rgba(255,255,255,.9);font-size:1.2rem;font-weight:600;color:#7c6a9e;outline:none;font-family:DM Sans,sans-serif;"/>
+        <input class="otp-box" type="text" inputmode="numeric" maxlength="1" oninput="eOtpMove(this,5)" onkeydown="eOtpKey(event,5)" style="width:42px;aspect-ratio:1;text-align:center;border:1.5px solid rgba(176,157,207,.38);border-radius:11px;background:rgba(255,255,255,.9);font-size:1.2rem;font-weight:600;color:#7c6a9e;outline:none;font-family:DM Sans,sans-serif;"/>
+      </div>
+      <button class="lg-btn" id="email-otp-btn" onclick="verifyEmailOTP()" disabled>Verify &amp; Sign In</button>
+      <p style="font-size:.72rem;color:#9990b0;margin-top:12px;">
+        Didn't get it? <a href="#" onclick="resendEmailOTP();return false;" style="color:#9b87c5;text-decoration:none;">Resend code</a>
         &nbsp;·&nbsp;
-        <a href="#" onclick="backToEmailPanel();return false;" style="color:#9b87c5;text-decoration:none;">Use different email</a>
+        <a href="#" onclick="backToEmailPanel();return false;" style="color:#9b87c5;text-decoration:none;">Go back</a>
       </p>
-    </div>
-  `;
-
-  // Store user ref for verification check
-  window._pendingEmailUser = user;
+    </div>`;
+  setTimeout(() => { const f = document.querySelector('#panel-email .otp-box'); if(f) f.focus(); }, 120);
 }
 
-function checkEmailVerified() {
-  const user = window._pendingEmailUser;
-  const btn  = document.getElementById('verify-check-btn');
-  if (!user) return;
-
-  _setBtnLoading(btn, 'Checking…');
-
-  // Reload user to get fresh emailVerified status
-  user.reload()
-    .then(() => {
-      if (firebase.auth().currentUser?.emailVerified) {
-        _onLoginSuccess(firebase.auth().currentUser);
-      } else {
-        _resetBtn(btn, "I've verified — Continue");
-        showError('Email not verified yet. Please click the link in your inbox.');
-      }
-    })
-    .catch(e => {
-      _resetBtn(btn, "I've verified — Continue");
-      showError('Could not check verification. Try again.');
-    });
+function eOtpMove(el, idx) {
+  el.value = el.value.replace(/\D/g,'');
+  const b = document.querySelectorAll('#panel-email .otp-box');
+  if (el.value && idx < 5) b[idx+1].focus();
+  const code = [...b].map(x=>x.value).join('');
+  const btn = document.getElementById('email-otp-btn');
+  if (btn) btn.disabled = code.length < 6;
+}
+function eOtpKey(e, idx) {
+  if (e.key === 'Backspace') {
+    const b = document.querySelectorAll('#panel-email .otp-box');
+    if (!b[idx].value && idx > 0) { b[idx-1].focus(); b[idx-1].value=''; }
+  }
 }
 
-function resendVerification() {
-  const user = window._pendingEmailUser;
-  if (!user) return;
-  user.sendEmailVerification()
-    .then(() => {
-      // Brief feedback
-      const hint = document.querySelector('#panel-email p:last-child a');
-      const orig = document.querySelector('#panel-email').innerHTML;
-      showError('Verification email resent! Check your inbox.');
-    })
-    .catch(e => showError('Could not resend: ' + e.message));
+async function verifyEmailOTP() {
+  if (!signUpRes) return;
+  const b    = document.querySelectorAll('#panel-email .otp-box');
+  const code = [...b].map(x=>x.value).join('');
+  const btn  = document.getElementById('email-otp-btn');
+  clearError();
+  _setBtnLoading(btn, 'Verifying…');
+  try {
+    const r = await signUpRes.attemptEmailAddressVerification({ code });
+    if (r.status === 'complete') {
+      await clerk.setActive({ session: r.createdSessionId });
+      _onLoginSuccess(clerk.user);
+    } else {
+      _resetBtn(btn, 'Verify & Sign In');
+      showError('Verification incomplete. Please try again.');
+    }
+  } catch (e) {
+    _resetBtn(btn, 'Verify & Sign In');
+    const msgs = { 'form_code_incorrect':'Wrong code. Try again.', 'verification_expired':'Code expired. Resend it.' };
+    showError(msgs[e.errors?.[0]?.code] || e.errors?.[0]?.message || 'Verification failed.');
+  }
+}
+
+async function resendEmailOTP() {
+  if (!signUpRes) return;
+  try {
+    await signUpRes.prepareEmailAddressVerification({ strategy: 'email_code' });
+    showError('✅ New code sent!');
+    setTimeout(() => clearError(), 3000);
+  } catch (e) { showError('Could not resend. Try again.'); }
 }
 
 function backToEmailPanel() {
-  window._pendingEmailUser = null;
-  // Rebuild email panel
+  signUpRes = null; signInRes = null;
   document.getElementById('panel-email').innerHTML = `
     <button class="lg-back" onclick="showPanel('panel-choose')">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-      Back
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> Back
     </button>
     <div class="lg-field-group">
       <div class="lg-field">
@@ -260,7 +227,7 @@ function backToEmailPanel() {
       <div class="lg-field" id="pw-field" style="display:none;">
         <label>Password</label>
         <div class="pw-wrap">
-          <input type="password" id="inp-pw" placeholder="Enter password (min 6 chars)"/>
+          <input type="password" id="inp-pw" placeholder="Min 8 characters"/>
           <button class="pw-eye" onclick="togglePw()" type="button">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
@@ -268,178 +235,130 @@ function backToEmailPanel() {
       </div>
     </div>
     <button class="lg-btn" id="email-next-btn" onclick="emailNext()" disabled>Continue</button>
-    <p class="lg-alt">No account? Just sign up with a new password.</p>
-  `;
+    <p class="lg-alt">No account? We'll create one automatically.</p>`;
 }
 
 function togglePw() {
-  const inp = document.getElementById('inp-pw');
-  if (inp) inp.type = inp.type === 'password' ? 'text' : 'password';
+  const i = document.getElementById('inp-pw');
+  if (i) i.type = i.type === 'password' ? 'text' : 'password';
 }
 
 // ════════════════════════════════════════════════════════════
-// 3. PHONE + OTP (Firebase Phone Auth)
+// 3. PHONE OTP
 // ════════════════════════════════════════════════════════════
 function validatePhone() {
-  const phone = document.getElementById('inp-phone').value.replace(/\s/g, '');
-  document.getElementById('phone-next-btn').disabled = phone.length < 6;
+  const p = document.getElementById('inp-phone').value.replace(/\s/g,'');
+  document.getElementById('phone-next-btn').disabled = p.length < 6;
 }
 
-function phoneNext() {
-  const otpVisible = document.getElementById('otp-field').style.display === 'block';
-  if (!otpVisible) {
-    _sendOTP();
-  } else {
-    _verifyOTP();
-  }
+async function phoneNext() {
+  const visible = document.getElementById('otp-field').style.display === 'block';
+  if (!visible) await _sendPhoneOTP(); else await _verifyPhoneOTP();
 }
 
-function _sendOTP() {
+async function _sendPhoneOTP() {
+  if (!clerk) { _demoLogin('Phone User'); return; }
   const cc  = document.getElementById('cc-code').textContent.trim();
-  const num = document.getElementById('inp-phone').value.replace(/\s/g, '');
+  const num = document.getElementById('inp-phone').value.replace(/\s/g,'');
   const full = cc + num;
   const btn  = document.getElementById('phone-next-btn');
-
   clearError();
   _setBtnLoading(btn, 'Sending OTP…');
 
-  // Destroy old reCAPTCHA if exists
-  if (recaptchaVerifier) {
-    try { recaptchaVerifier.clear(); } catch(e) {}
-    recaptchaVerifier = null;
+  try {
+    // Try sign-in via phone
+    phoneSignInRes = await clerk.client.signIn.create({ identifier: full });
+    const factor = phoneSignInRes.supportedFirstFactors?.find(f => f.strategy === 'phone_code');
+    if (factor) {
+      await phoneSignInRes.prepareFirstFactor({ strategy: 'phone_code', phoneNumberId: factor.phoneNumberId });
+    } else {
+      throw { errors: [{ code: 'no_phone_factor' }] };
+    }
+  } catch (e) {
+    // Phone not registered → sign up
+    try {
+      phoneSignInRes = await clerk.client.signUp.create({ phoneNumber: full });
+      await phoneSignInRes.preparePhoneNumberVerification({ strategy: 'phone_code' });
+      phoneSignInRes._isSignUp = true;
+    } catch (e2) {
+      _resetBtn(btn, 'Send OTP');
+      showError(e2.errors?.[0]?.longMessage || e2.errors?.[0]?.message || 'Could not send OTP.');
+      return;
+    }
   }
 
-  // Create invisible reCAPTCHA — anchored to the div#phone-recaptcha
-  recaptchaVerifier = new firebase.auth.RecaptchaVerifier('phone-recaptcha', {
-    size: 'invisible',
-    callback: () => {},
-    'expired-callback': () => {
-      recaptchaVerifier = null;
-      showError('reCAPTCHA expired. Please try again.');
-      _resetBtn(btn, 'Send OTP');
-    },
-  });
-
-  auth.signInWithPhoneNumber(full, recaptchaVerifier)
-    .then(result => {
-      confirmationResult = result;
-      _resetBtn(btn, 'Verify OTP');
-      btn.disabled = true;
-
-      // Show OTP input boxes
-      const otpField = document.getElementById('otp-field');
-      otpField.style.display = 'block';
-      document.getElementById('otp-num').textContent = full;
-      document.getElementById('phone-alt').innerHTML =
-        `<a href="#" onclick="resendOtp();return false;" style="color:#9b87c5;">Resend OTP</a>`;
-
-      // Focus first box
-      setTimeout(() => {
-        const firstBox = document.querySelector('.otp-box');
-        if (firstBox) firstBox.focus();
-      }, 100);
-
-      console.log('📱 OTP sent to', full);
-    })
-    .catch(err => {
-      _resetBtn(btn, 'Send OTP');
-      // Reset reCAPTCHA on failure
-      if (recaptchaVerifier) {
-        try { recaptchaVerifier.clear(); } catch(e) {}
-        recaptchaVerifier = null;
-      }
-      const msgs = {
-        'auth/invalid-phone-number':  'Invalid phone number. Use format: +91XXXXXXXXXX',
-        'auth/too-many-requests':     'Too many attempts. Please wait a few minutes.',
-        'auth/quota-exceeded':        'SMS quota exceeded. Try email login instead.',
-        'auth/captcha-check-failed':  'reCAPTCHA failed. Refresh the page and try again.',
-      };
-      showError(msgs[err.code] || 'Could not send OTP: ' + err.message);
-    });
+  _resetBtn(btn, 'Verify OTP');
+  btn.disabled = true;
+  document.getElementById('otp-field').style.display = 'block';
+  document.getElementById('otp-num').textContent = full;
+  document.getElementById('phone-alt').innerHTML =
+    `<a href="#" onclick="resendOtp();return false;" style="color:#9b87c5;">Resend OTP</a>`;
+  setTimeout(() => { const f = document.querySelector('#panel-phone .otp-box'); if(f) f.focus(); }, 100);
 }
 
-function _verifyOTP() {
-  const otp = [...document.querySelectorAll('.otp-box')]
-              .map(b => b.value.trim()).join('');
+async function _verifyPhoneOTP() {
+  const otp = [...document.querySelectorAll('#panel-phone .otp-box')].map(b=>b.value.trim()).join('');
   const btn = document.getElementById('phone-next-btn');
-
   clearError();
-
-  if (otp.length !== 6) {
-    showError('Please enter all 6 digits of the OTP.');
-    return;
-  }
-  if (!confirmationResult) {
-    showError('Session expired. Please request a new OTP.');
-    return;
-  }
-
+  if (otp.length !== 6) { showError('Enter all 6 digits.'); return; }
+  if (!phoneSignInRes)  { showError('Session expired. Request a new OTP.'); return; }
   _setBtnLoading(btn, 'Verifying…');
-
-  confirmationResult.confirm(otp)
-    .then(result => {
-      console.log('✅ Phone OK:', result.user.phoneNumber);
-      _onLoginSuccess(result.user);
-    })
-    .catch(err => {
+  try {
+    let r;
+    if (phoneSignInRes._isSignUp) {
+      r = await phoneSignInRes.attemptPhoneNumberVerification({ code: otp });
+    } else {
+      r = await phoneSignInRes.attemptFirstFactor({ strategy: 'phone_code', code: otp });
+    }
+    if (r.status === 'complete') {
+      await clerk.setActive({ session: r.createdSessionId });
+      _onLoginSuccess(clerk.user);
+    } else {
       _resetBtn(btn, 'Verify OTP');
-      const msgs = {
-        'auth/invalid-verification-code': 'Wrong OTP. Please check and try again.',
-        'auth/code-expired':              'OTP expired. Tap Resend OTP.',
-        'auth/session-expired':           'Session expired. Tap Resend OTP.',
-      };
-      showError(msgs[err.code] || 'Verification failed: ' + err.message);
-    });
+      showError('Verification incomplete. Try again.');
+    }
+  } catch (e) {
+    _resetBtn(btn, 'Verify OTP');
+    const msgs = { 'form_code_incorrect':'Wrong OTP. Try again.', 'verification_expired':'OTP expired. Tap Resend.' };
+    showError(msgs[e.errors?.[0]?.code] || e.errors?.[0]?.message || 'Verification failed.');
+  }
 }
 
 function otpMove(el, idx) {
-  // Allow only digits
-  el.value = el.value.replace(/\D/g, '');
-  const boxes = document.querySelectorAll('.otp-box');
-
-  // Auto-advance
-  if (el.value && idx < 5) {
-    boxes[idx + 1].focus();
-  }
-  // Handle backspace — go back
-  if (!el.value && idx > 0) {
-    boxes[idx - 1].focus();
-  }
-
-  // Enable verify btn when all 6 filled
-  const otp = [...boxes].map(b => b.value).join('');
+  el.value = el.value.replace(/\D/g,'');
+  const b = document.querySelectorAll('#panel-phone .otp-box');
+  if (el.value && idx < 5) b[idx+1].focus();
+  const otp = [...b].map(x=>x.value).join('');
   document.getElementById('phone-next-btn').disabled = otp.length < 6;
 }
-
-function resendOtp() {
-  // Reset OTP boxes
-  document.querySelectorAll('.otp-box').forEach(b => b.value = '');
+function otpKey(e, idx) {
+  if (e.key === 'Backspace') {
+    const b = document.querySelectorAll('#panel-phone .otp-box');
+    if (!b[idx].value && idx > 0) { b[idx-1].focus(); b[idx-1].value=''; }
+  }
+}
+async function resendOtp() {
+  document.querySelectorAll('#panel-phone .otp-box').forEach(b=>b.value='');
   document.getElementById('otp-field').style.display = 'none';
   document.getElementById('phone-alt').innerHTML = '';
-  confirmationResult = null;
-
+  phoneSignInRes = null;
   const btn = document.getElementById('phone-next-btn');
-  _resetBtn(btn, 'Send OTP');
-  btn.disabled = false;
-
-  // Slight delay then resend
-  setTimeout(() => _sendOTP(), 300);
+  _resetBtn(btn, 'Send OTP'); btn.disabled = false;
+  setTimeout(() => _sendPhoneOTP(), 300);
 }
 
 // ════════════════════════════════════════════════════════════
-// COUNTRY CODE DROPDOWN
+// COUNTRY CODE
 // ════════════════════════════════════════════════════════════
 function toggleCountry() {
   const dd = document.getElementById('cc-dropdown');
-  if (!dd) return;
-  dd.style.display = (dd.style.display === 'block') ? 'none' : 'block';
+  if (dd) dd.style.display = dd.style.display === 'block' ? 'none' : 'block';
 }
 function setCC(flag, code) {
   document.getElementById('cc-flag').textContent = flag;
   document.getElementById('cc-code').textContent = code;
   document.getElementById('cc-dropdown').style.display = 'none';
 }
-// Close dropdown when clicking outside
 document.addEventListener('click', e => {
   if (!e.target.closest('.country-code')) {
     const dd = document.getElementById('cc-dropdown');
@@ -450,135 +369,71 @@ document.addEventListener('click', e => {
 // ════════════════════════════════════════════════════════════
 // SIGN OUT
 // ════════════════════════════════════════════════════════════
-function signOut() {
-  auth.signOut().then(() => {
-    currentUser = null;
-    window.MEDBUDDY_USER = null;
-    window.location.reload();
-  });
+async function signOut() {
+  if (clerk) await clerk.signOut();
+  currentUser = null; window.MEDBUDDY_USER = null;
+  window.location.reload();
 }
 
 // ════════════════════════════════════════════════════════════
 // SHARED HELPERS
 // ════════════════════════════════════════════════════════════
-
 function _onLoginSuccess(user) {
+  if (!user) return;
   currentUser = user;
   window.MEDBUDDY_USER = {
-    uid:    user.uid,
-    email:  user.email         || null,
-    phone:  user.phoneNumber   || null,
-    name:   user.displayName || user.email || user.phoneNumber || 'User',
-    photo:  user.photoURL      || null,
+    uid:   user.id,
+    name:  user.fullName || user.primaryEmailAddress?.emailAddress || user.primaryPhoneNumber?.phoneNumber || 'User',
+    email: user.primaryEmailAddress?.emailAddress || null,
+    phone: user.primaryPhoneNumber?.phoneNumber   || null,
+    photo: user.imageUrl || null,
   };
-
-  // Optional: verify token with backend
-  user.getIdToken().then(token => {
-    fetch('/api/auth/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idToken: token }),
-    })
-    .then(r => r.json())
-    .then(d => { if (d.ok) window.MEDBUDDY_USER = { ...window.MEDBUDDY_USER, ...d.user }; })
-    .catch(() => {}); // silent — static hosting won't have this endpoint
-  });
-
   _hideLoginShowApp(window.MEDBUDDY_USER.name);
 }
 
-function _hideLoginShowApp(userName) {
+function _hideLoginShowApp(name) {
   const lp = document.getElementById('login-page');
-  if (!lp || lp.style.display === 'none') return; // already hidden
-
+  if (!lp || lp.style.display === 'none') return;
   lp.style.transition = 'opacity .45s ease, transform .45s ease';
-  lp.style.opacity    = '0';
-  lp.style.transform  = 'scale(1.03)';
-
+  lp.style.opacity = '0'; lp.style.transform = 'scale(1.03)';
   setTimeout(() => {
     lp.style.display = 'none';
-
-    const appEl = document.querySelector('.app');
-    if (appEl) {
-      appEl.style.opacity    = '0';
-      appEl.style.display    = 'block';
-      requestAnimationFrame(() => {
-        appEl.style.transition = 'opacity .5s ease';
-        appEl.style.opacity    = '1';
-      });
-    }
-
-    // Show sign-out button
-    const soBtn = document.getElementById('signout-btn');
-    if (soBtn) soBtn.style.display = 'block';
-
-    // Welcome toast
-    _showToast('👋 Welcome, ' + (userName || 'User').split('@')[0] + '!');
+    const app = document.querySelector('.app');
+    if (app) { app.style.opacity='0'; app.style.display='block'; requestAnimationFrame(()=>{ app.style.transition='opacity .5s ease'; app.style.opacity='1'; }); }
+    const sob = document.getElementById('signout-btn'); if(sob) sob.style.display='block';
+    _toast('👋 Welcome, ' + (name||'User').split('@')[0] + '!');
   }, 450);
 }
 
-function enterApp() {
-  // Legacy stub — calls _hideLoginShowApp
-  _hideLoginShowApp(window.MEDBUDDY_USER?.name || 'User');
+function _demoLogin(name) {
+  window.MEDBUDDY_USER = { uid:'demo', name, email:'demo@medbuddy.app' };
+  _hideLoginShowApp(name);
+}
+function enterApp() { _hideLoginShowApp(window.MEDBUDDY_USER?.name||'User'); }
+
+function _setBtnLoading(btn, txt) {
+  if (!btn) return;
+  btn.disabled = true; btn.dataset.orig = btn.innerText;
+  btn.innerHTML = `<span class="auth-spinner"></span> ${txt}`;
+}
+function _resetBtn(btn, txt) {
+  if (!btn) return;
+  btn.disabled = false; btn.textContent = txt || btn.dataset.orig || 'Continue';
 }
 
-// Button loading state helpers
-function _setBtnLoading(btn, text) {
-  if (!btn) return;
-  btn.disabled = true;
-  btn.dataset.orig = btn.textContent;
-  btn.innerHTML = `<span class="auth-spinner"></span> ${text}`;
-}
-function _resetBtn(btn, text) {
-  if (!btn) return;
-  btn.disabled  = false;
-  btn.textContent = text || btn.dataset.orig || 'Continue';
-}
-
-// Error display
 function showError(msg) {
   clearError();
-  const el = document.createElement('p');
-  el.id = 'auth-error';
-  el.textContent = msg;
-  el.style.cssText = `
-    font-size:.78rem;color:#b05e7a;text-align:center;margin-top:12px;
-    padding:9px 14px;background:rgba(212,134,156,.1);
-    border-radius:10px;border:1px solid rgba(212,134,156,.28);
-    animation:panelIn .25s ease both;
-  `;
-  const panel = [...document.querySelectorAll('.lg-panel')]
-    .find(p => p.style.display !== 'none' && !p.style.display.includes('none'))
-    || document.getElementById('panel-choose');
-  if (panel) panel.appendChild(el);
+  const el = document.createElement('p'); el.id = 'auth-error'; el.textContent = msg;
+  el.style.cssText = `font-size:.78rem;color:#b05e7a;text-align:center;margin-top:12px;padding:9px 14px;background:rgba(212,134,156,.1);border-radius:10px;border:1px solid rgba(212,134,156,.28);`;
+  const p = [...document.querySelectorAll('.lg-panel')].find(x=>x.style.display!=='none') || document.getElementById('panel-choose');
+  if (p) p.appendChild(el);
 }
-function clearError() {
-  const el = document.getElementById('auth-error');
-  if (el) el.remove();
-}
+function clearError() { const e = document.getElementById('auth-error'); if(e) e.remove(); }
 
-// Welcome toast
-function _showToast(msg) {
+function _toast(msg) {
   const t = document.createElement('div');
-  t.style.cssText = `
-    position:fixed;bottom:28px;left:50%;
-    transform:translateX(-50%) translateY(20px);
-    background:linear-gradient(135deg,#9b87c5,#7c6a9e);
-    color:#fff;padding:11px 22px;border-radius:50px;
-    font-size:.84rem;font-weight:500;letter-spacing:.01em;
-    box-shadow:0 6px 24px rgba(124,106,158,.4);z-index:9999;
-    opacity:0;transition:all .4s cubic-bezier(.34,1.56,.64,1);
-    font-family:'DM Sans',sans-serif;white-space:nowrap;
-  `;
-  t.textContent = msg;
-  document.body.appendChild(t);
-  requestAnimationFrame(() => {
-    t.style.opacity   = '1';
-    t.style.transform = 'translateX(-50%) translateY(0)';
-  });
-  setTimeout(() => {
-    t.style.opacity   = '0';
-    t.style.transform = 'translateX(-50%) translateY(10px)';
-    setTimeout(() => t.remove(), 400);
-  }, 3200);
+  t.style.cssText = `position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);background:linear-gradient(135deg,#9b87c5,#7c6a9e);color:#fff;padding:11px 22px;border-radius:50px;font-size:.84rem;font-weight:500;box-shadow:0 6px 24px rgba(124,106,158,.4);z-index:9999;opacity:0;transition:all .4s cubic-bezier(.34,1.56,.64,1);font-family:'DM Sans',sans-serif;white-space:nowrap;`;
+  t.textContent = msg; document.body.appendChild(t);
+  requestAnimationFrame(()=>{ t.style.opacity='1'; t.style.transform='translateX(-50%) translateY(0)'; });
+  setTimeout(()=>{ t.style.opacity='0'; t.style.transform='translateX(-50%) translateY(10px)'; setTimeout(()=>t.remove(),400); }, 3200);
 }
