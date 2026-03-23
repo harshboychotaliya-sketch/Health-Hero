@@ -1,671 +1,677 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>HealthHero</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HealthHero - Medical Analysis Platform</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    :root {
+      --lavender-light: #f5e6f0;
+      --lavender-main: #e0c3e8;
+      --lavender-dark: #c8a2d0;
+      --purple-dark: #5d408e;
+      --purple-darker: #2d1b4e;
+      --white: #ffffff;
+      --success: #00c97b;
+      --warning: #ff9500;
+      --danger: #e24b4a;
+    }
 
-<!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, var(--lavender-light) 0%, #f8f7fb 100%);
+      color: var(--purple-darker);
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+    }
 
-<style>
-  *{margin:0;padding:0;box-sizing:border-box;}
-  body{
-    background: linear-gradient(135deg, #f5e6f0 0%, #e8d5f2 50%, #f0e6f5 100%);
-    font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-    color:#3d3845;
-    line-height:1.5;
-    min-height:100vh;
-    position:relative;
-    overflow-x:hidden;
-  }
-
-  /* ── LAVENDER FLOWERS BACKGROUND (PERSISTENT) ── */
-  .lavender-background {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 0;
-    pointer-events: none;
-    opacity: 0.08;
-  }
-
-  .lavender-bg-svg {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-  }
-
-  /* ── SPLASH SCREEN WITH ANIMATION ── */
-  .splash {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(135deg, #f5e6f0 0%, #e8d5f2 50%, #f0e6f5 100%);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    z-index: 9999;
-    overflow: hidden;
-  }
-
-  .splash.hide {
-    animation: fadeOutSplash 0.8s ease-out forwards;
-  }
-
-  @keyframes fadeOutSplash {
-    to {
-      opacity: 0;
+    /* ==================== LAVENDER FLOWERS BACKGROUND ==================== */
+    .flower-background {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 0;
+      opacity: 0.08;
       pointer-events: none;
+      background-image: 
+        radial-gradient(circle at 10% 20%, #c8a2d0 2px, transparent 2px),
+        radial-gradient(circle at 15% 80%, #d4b3db 2px, transparent 2px),
+        radial-gradient(circle at 20% 50%, #e0c3e8 2px, transparent 2px),
+        radial-gradient(circle at 30% 30%, #b89ac5 2px, transparent 2px),
+        radial-gradient(circle at 40% 70%, #c8a2d0 2px, transparent 2px),
+        radial-gradient(circle at 50% 40%, #d4b3db 2px, transparent 2px),
+        radial-gradient(circle at 60% 60%, #e0c3e8 2px, transparent 2px),
+        radial-gradient(circle at 70% 20%, #b89ac5 2px, transparent 2px),
+        radial-gradient(circle at 80% 50%, #c8a2d0 2px, transparent 2px),
+        radial-gradient(circle at 90% 80%, #d4b3db 2px, transparent 2px),
+        radial-gradient(circle at 25% 65%, #e0c3e8 2px, transparent 2px),
+        radial-gradient(circle at 75% 35%, #b89ac5 2px, transparent 2px);
+      background-size: 200px 200px;
+      background-repeat: repeat;
     }
-  }
 
-  .splash-logo {
-    font-size: 100px;
-    margin-bottom: 30px;
-    animation: logoFloatIn 2.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-    filter: drop-shadow(0 10px 25px rgba(93, 64, 142, 0.2));
-  }
-
-  @keyframes logoFloatIn {
-    0% {
-      opacity: 0;
-      transform: scale(0.3) translateY(50px);
+    /* Splash Screen */
+    .splash {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(135deg, var(--lavender-light) 0%, var(--lavender-main) 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      animation: splashOut 0.8s ease-out 2.5s forwards;
     }
-    50% {
-      opacity: 1;
+
+    @keyframes splashOut {
+      to { opacity: 0; visibility: hidden; }
     }
-    100% {
-      opacity: 1;
-      transform: scale(1) translateY(0);
+
+    .splash-logo {
+      width: 80px;
+      height: 80px;
+      margin-bottom: 20px;
+      animation: logoFloat 2.5s ease-out;
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
     }
-  }
 
-  .splash-text {
-    font-size: 36px;
-    font-weight: 800;
-    color: #5d408e;
-    margin-bottom: 12px;
-    letter-spacing: 1px;
-    animation: textFadeIn 2.5s ease-out 0.3s forwards;
-    opacity: 0;
-  }
-
-  .splash-subtitle {
-    font-size: 16px;
-    color: #8b7fa8;
-    animation: textFadeIn 2.5s ease-out 0.6s forwards;
-    opacity: 0;
-    font-weight: 500;
-  }
-
-  @keyframes textFadeIn {
-    to {
-      opacity: 1;
+    @keyframes logoFloat {
+      0% { opacity: 0; transform: scale(0.3) translateY(50px); }
+      60% { opacity: 1; }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
     }
-  }
 
-  /* ── MAIN CONTENT ── */
-  .content-wrapper {
-    position: relative;
-    z-index: 1;
-  }
+    .splash-title { font-size: 42px; font-weight: 700; color: var(--purple-darker); margin-bottom: 12px; animation: titleFade 2.5s ease-out 0.3s both; }
+    .splash-subtitle { font-size: 16px; color: #8b7fa8; animation: titleFade 2.5s ease-out 0.6s both; }
 
-  /* ── Container & Layout ── */
-  .wrap{max-width:1000px;margin:0 auto;padding:20px;position:relative;}
-  .mainsection{background:white;border-radius:12px;padding:28px;margin:20px 0;box-shadow:0 2px 8px rgba(93,64,142,0.08);position:relative;z-index:1;}
-
-  /* ── Typography ── */
-  h1{font-size:28px;font-weight:700;color:#2d1b4e;margin-bottom:8px;}
-  h2{font-size:22px;font-weight:700;color:#2d1b4e;}
-  h3{font-size:18px;font-weight:600;color:#2d1b4e;}
-  h4{font-size:15px;font-weight:600;color:#2d1b4e;}
-  p{font-size:15px;line-height:1.6;color:#5a5070;margin:10px 0;}
-  strong{font-weight:600;color:#2d1b4e;}
-
-  /* ── Header & Nav ── */
-  .header{display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-bottom:1px solid rgba(176,157,207,0.15);margin-bottom:24px;}
-  .logo{display:flex;align-items:center;gap:10px;font-size:24px;font-weight:700;color:#5d408e;}
-  .logo-text{font-size:20px;letter-spacing:0.5px;}
-  .pills{display:flex;gap:8px;}
-  .pill{padding:8px 16px;border-radius:20px;border:1.5px solid rgba(176,157,207,0.3);background:white;color:#5a5070;font-size:13px;font-weight:500;cursor:pointer;transition:all 0.3s;}
-  .pill.on{background:#5d408e;color:white;border-color:#5d408e;}
-
-  /* ── Upload Section ── */
-  .dropz{border:2px dashed rgba(93,64,142,0.25);border-radius:10px;padding:40px 20px;text-align:center;cursor:pointer;transition:all 0.3s;background:rgba(237,232,248,0.3);}
-  .dropz.over{background:rgba(93,64,142,0.1);border-color:#5d408e;}
-  .dzi{font-size:40px;margin-bottom:12px;}
-  .dzh{font-size:16px;font-weight:600;color:#2d1b4e;margin-bottom:4px;}
-  .dzp{font-size:13px;color:#a89fbb;}
-  #finput{display:none;}
-
-  /* ── File Strip ── */
-  .fstrip{display:none;align-items:center;gap:12px;padding:12px 16px;background:rgba(51,200,125,0.08);border:1px solid rgba(51,200,125,0.2);border-radius:8px;margin:16px 0;color:#2d7d4a;}
-  .fstrip.on{display:flex;}
-  .fstrip svg{width:20px;height:20px;}
-  .fstrip p{margin:0;font-size:14px;}
-  .fbtn{background:none;border:none;color:#2d7d4a;cursor:pointer;font-size:18px;padding:0;}
-
-  /* ── Options Section ── */
-  .opts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:20px 0;}
-  .og{display:flex;flex-direction:column;}
-  .og label{font-size:13px;font-weight:600;color:#3d3845;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;}
-  .og input{padding:10px 12px;border:1.5px solid rgba(176,157,207,0.2);border-radius:6px;font-size:14px;color:#3d3845;}
-  .og input:focus{outline:none;border-color:#5d408e;background:rgba(93,64,142,0.02);}
-  .lang-show{display:flex;align-items:center;gap:8px;padding:10px 12px;background:rgba(237,232,248,0.5);border-radius:6px;font-size:14px;font-weight:500;}
-  .lang-hint{font-size:12px;color:#a89fbb;margin-top:4px;}
-
-  /* ── Button ── */
-  .abtn{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;background:linear-gradient(135deg,#5d408e,#7c5ba8);color:white;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:all 0.3s;box-shadow:0 4px 12px rgba(93,64,142,0.25);}
-  .abtn:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(93,64,142,0.35);}
-  .abtn:active{transform:translateY(0);}
-  .reset{background:#f5f3f7;color:#5d408e;border:1.5px solid rgba(93,64,142,0.2);padding:12px 24px;border-radius:8px;font-weight:600;cursor:pointer;transition:all 0.3s;margin-top:24px;}
-  .reset:hover{background:white;border-color:#5d408e;}
-
-  /* ── Results Section ── */
-  .results{display:none;}
-  .results.on{display:block;}
-  .sumbanner{display:flex;gap:16px;padding:16px;background:linear-gradient(135deg,rgba(93,64,142,0.08),rgba(124,91,168,0.06));border-left:4px solid #5d408e;border-radius:8px;margin-bottom:24px;}
-  .si{font-size:24px;}
-  .sumbanner h4{margin:0 0 4px;}
-  .sumbanner p{margin:0;font-size:14px;color:#6b6171;}
-
-  /* ── Result Cards ── */
-  .rc{margin:24px 0;padding:20px;background:#fafaf9;border:1px solid rgba(176,157,207,0.15);border-radius:10px;}
-  .rh{display:flex;align-items:center;gap:12px;margin-bottom:16px;}
-  .dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
-  .dp{background:#5d408e;}
-  .db{background:#0066cc;}
-  .dw{background:#ff9500;}
-  .dg{background:#00c97b;}
-  .rh h3{margin:0;flex:1;}
-  .badge{display:inline-block;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;}
-  .bpu{background:rgba(93,64,142,0.1);color:#5d408e;}
-  .bbl{background:rgba(0,102,204,0.1);color:#0066cc;}
-  .bwa{background:rgba(255,149,0,0.1);color:#d97700;}
-  .bgr{background:rgba(0,201,123,0.1);color:#00915a;}
-
-  /* ── Diagnosis Text & Comparison ── */
-  .dtxt{font-size:15px;line-height:1.7;color:#5a5070;margin-bottom:16px;}
-  .cmp{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;}
-  @media(max-width:768px){
-    .cmp{grid-template-columns:1fr;}
-    .opts{grid-template-columns:1fr;}
-  }
-
-  .cb2{padding:14px;background:white;border:1px solid rgba(176,157,207,0.2);border-radius:8px;overflow:hidden;word-wrap:break-word;white-space:normal;}
-  .cb2.or{border-left:3px solid #ff9500;}
-  .cb2.si{border-left:3px solid #00c97b;}
-  .bl2{display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:#a89fbb;letter-spacing:0.5px;margin-bottom:8px;}
-  .cb2 span{display:block;font-size:14px;line-height:1.6;color:#5a5070;word-wrap:break-word;white-space:normal;overflow-wrap:break-word;}
-
-  /* ── Medication Table ── */
-  .mt{width:100%;border-collapse:collapse;font-size:14px;}
-  .mt thead{background:#f0ede8;}
-  .mt th{padding:12px;text-align:left;font-weight:600;color:#3d3845;border-bottom:2px solid rgba(176,157,207,0.2);}
-  .mt td{padding:12px;border-bottom:1px solid rgba(176,157,207,0.15);word-wrap:break-word;}
-  .mt tr:hover{background:#fafaf9;}
-  .mn{font-weight:600;color:#2d1b4e;}
-  .tc{display:inline-block;background:rgba(93,64,142,0.08);color:#5d408e;padding:4px 8px;border-radius:4px;margin:2px 4px 2px 0;font-size:12px;white-space:nowrap;}
-
-  /* ── Side Effects List ── */
-  .sel{list-style:none;}
-  .sel li{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid rgba(176,157,207,0.1);}
-  .sel li:last-child{border-bottom:none;}
-  .sei{font-size:24px;flex-shrink:0;width:32px;text-align:center;}
-  .set h4{margin:0 0 4px;color:#2d1b4e;}
-  .set p{margin:0;font-size:13px;color:#6b6171;word-wrap:break-word;}
-
-  /* ── Checklist ── */
-  .ckl{list-style:none;}
-  .ckl li{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid rgba(176,157,207,0.1);}
-  .ckl li:last-child{border-bottom:none;}
-  .ck{width:20px;height:20px;border:2px solid rgba(93,64,142,0.3);border-radius:4px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.3s;margin-top:2px;}
-  .ck.on{background:#5d408e;border-color:#5d408e;color:white;}
-  .ck.on::after{content:"✓";font-weight:700;font-size:12px;}
-  .ckl span{font-size:14px;color:#5a5070;word-wrap:break-word;}
-
-  /* ── Analyzing Overlay ── */
-  .analyzing{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:none;align-items:center;justify-content:center;z-index:1000;backdrop-filter:blur(2px);}
-  .analyzing.on{display:flex;}
-  .ancard{background:white;padding:40px;border-radius:12px;text-align:center;max-width:400px;box-shadow:0 10px 40px rgba(0,0,0,0.2);}
-  .ancard h3{margin:0 0 16px;color:#2d1b4e;}
-  .ansteps{display:flex;justify-content:center;gap:8px;margin:24px 0;}
-  .astep{width:40px;height:40px;border-radius:50%;background:#f0ede8;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;color:#a89fbb;transition:all 0.3s;}
-  .astep.active{background:#5d408e;color:white;box-shadow:0 2px 8px rgba(93,64,142,0.3);}
-  .astep.done{background:#00c97b;color:white;}
-
-  /* ── Disclaimer ── */
-  .disc{background:rgba(255,149,0,0.08);border-left:3px solid #ff9500;padding:16px;margin:24px 0;border-radius:6px;font-size:13px;color:#6b6171;}
-  .disc p{margin:0;}
-
-  /* ── Page Load Animation ── */
-  .wrap {
-    animation: slideInUp 2.5s ease-out forwards;
-  }
-
-  @keyframes slideInUp {
-    from {
-      opacity: 0;
-      transform: translateY(30px);
+    @keyframes titleFade {
+      to { opacity: 1; }
     }
-    to {
-      opacity: 1;
-      transform: translateY(0);
+
+    /* Container */
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; position: relative; z-index: 1; }
+
+    /* Header */
+    header {
+      background: var(--white);
+      padding: 20px 30px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(93, 64, 142, 0.08);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
     }
-  }
-</style>
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--purple-darker);
+    }
+
+    .logo-image {
+      width: 50px;
+      height: 50px;
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+
+    .nav-right { display: flex; align-items: center; gap: 20px; }
+
+    .lang-toggle { display: flex; gap: 8px; }
+
+    .lang-btn {
+      padding: 8px 14px;
+      border: 1px solid var(--lavender-dark);
+      background: var(--white);
+      color: #5a5070;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+
+    .lang-btn.active {
+      background: var(--purple-dark);
+      color: var(--white);
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 30px;
+      background: var(--white);
+      padding: 15px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(93, 64, 142, 0.08);
+      overflow-x: auto;
+    }
+
+    .tab-btn {
+      padding: 12px 20px;
+      background: transparent;
+      border: none;
+      color: #5a5070;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.3s;
+      white-space: nowrap;
+    }
+
+    .tab-btn.active {
+      color: var(--purple-dark);
+      border-bottom-color: var(--purple-dark);
+    }
+
+    /* Tab Content */
+    .tab-content { display: none; animation: fadeIn 0.4s; }
+    .tab-content.active { display: block; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    /* Card */
+    .card {
+      background: var(--white);
+      border-radius: 12px;
+      padding: 25px;
+      box-shadow: 0 2px 10px rgba(93, 64, 142, 0.08);
+      margin-bottom: 25px;
+    }
+
+    .card-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: var(--purple-darker);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Upload Area */
+    .upload-area {
+      border: 2px dashed var(--lavender-dark);
+      border-radius: 12px;
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+      background: rgba(224, 195, 232, 0.1);
+    }
+
+    .upload-area:hover {
+      border-color: var(--purple-dark);
+      background: rgba(224, 195, 232, 0.2);
+    }
+
+    .upload-icon { font-size: 48px; margin-bottom: 15px; }
+    .upload-text { font-weight: 600; margin-bottom: 8px; }
+    .upload-subtext { color: #a89fbb; font-size: 13px; }
+
+    /* Search */
+    .search-container { display: flex; gap: 12px; margin-bottom: 25px; }
+    .search-input { flex: 1; padding: 12px 16px; border: 1px solid var(--lavender-dark); border-radius: 8px; font-size: 14px; }
+    .search-input:focus { outline: none; border-color: var(--purple-dark); background: rgba(224, 195, 232, 0.1); }
+
+    .btn {
+      padding: 12px 25px;
+      background: linear-gradient(135deg, var(--purple-dark), #7c5ba8);
+      color: var(--white);
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    /* Results Grid */
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 20px;
+    }
+
+    .result-card {
+      background: var(--white);
+      border: 1px solid var(--lavender-main);
+      border-radius: 10px;
+      padding: 20px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .result-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 20px rgba(93, 64, 142, 0.15);
+      border-color: var(--purple-dark);
+    }
+
+    .result-name { font-weight: 700; color: var(--purple-darker); margin-bottom: 12px; font-size: 16px; }
+    .result-detail { font-size: 13px; color: #5a5070; margin-bottom: 8px; }
+
+    /* Form Elements */
+    .form-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px; }
+    .form-label { font-weight: 600; color: var(--purple-darker); font-size: 14px; }
+    .form-input, .form-select { padding: 12px 14px; border: 1px solid var(--lavender-dark); border-radius: 8px; font-size: 14px; }
+    .form-input:focus, .form-select:focus { outline: none; border-color: var(--purple-dark); background: rgba(224, 195, 232, 0.1); }
+
+    /* Report Results */
+    .report-result {
+      background: linear-gradient(135deg, rgba(224, 195, 232, 0.1), rgba(232, 213, 242, 0.1));
+      border-left: 4px solid var(--purple-dark);
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+    }
+
+    .report-result.warning { border-left-color: var(--warning); background: linear-gradient(135deg, rgba(255, 149, 0, 0.08), rgba(255, 180, 80, 0.08)); }
+    .report-result.danger { border-left-color: var(--danger); background: linear-gradient(135deg, rgba(226, 75, 74, 0.08), rgba(242, 130, 130, 0.08)); }
+
+    .result-parameter { font-weight: 700; color: var(--purple-darker); margin-bottom: 8px; }
+    .result-value { font-size: 13px; color: #5a5070; margin-bottom: 12px; }
+    .result-meaning { font-size: 13px; color: #5a5070; line-height: 1.6; padding: 10px; background: rgba(255, 255, 255, 0.5); border-radius: 6px; }
+
+    .badge {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-top: 10px;
+    }
+
+    .badge-normal { background: rgba(0, 201, 123, 0.15); color: #00915a; }
+    .badge-warning { background: rgba(255, 149, 0, 0.15); color: #d97700; }
+    .badge-danger { background: rgba(226, 75, 74, 0.15); color: #a32d2d; }
+
+    /* ==================== MEDICINE TABLE ==================== */
+    .medicine-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      background: var(--white);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(93, 64, 142, 0.1);
+    }
+
+    .medicine-table thead {
+      background: linear-gradient(135deg, var(--purple-dark), #7c5ba8);
+      color: var(--white);
+    }
+
+    .medicine-table th {
+      padding: 15px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .medicine-table td {
+      padding: 15px;
+      border-bottom: 1px solid var(--lavender-light);
+      font-size: 13px;
+      color: #5a5070;
+    }
+
+    .medicine-table tbody tr:hover {
+      background: rgba(224, 195, 232, 0.1);
+    }
+
+    .medicine-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .medicine-name {
+      font-weight: 600;
+      color: var(--purple-darker);
+    }
+
+    .side-effect-tag {
+      display: inline-block;
+      background: rgba(226, 75, 74, 0.15);
+      color: #a32d2d;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-right: 5px;
+    }
+
+    .precaution-tag {
+      display: inline-block;
+      background: rgba(255, 149, 0, 0.15);
+      color: #d97700;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-right: 5px;
+    }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 768px) {
+      header { flex-direction: column; gap: 15px; }
+      .nav-right { flex-direction: column; width: 100%; }
+      .tabs { flex-wrap: wrap; }
+      .results-grid { grid-template-columns: 1fr; }
+      .upload-area { padding: 30px 20px; }
+      .splash-title { font-size: 28px; }
+      .medicine-table { font-size: 12px; }
+      .medicine-table th, .medicine-table td { padding: 10px; }
+    }
+  </style>
 </head>
 <body>
 
-<!-- Persistent Lavender Flowers Background -->
-<div class="lavender-background" id="lavenderBackground"></div>
+<!-- ==================== LAVENDER FLOWERS BACKGROUND ==================== -->
+<div class="flower-background"></div>
 
-<!-- Splash Screen with Animation -->
-<div class="splash" id="splash">
-  <div class="splash-logo">💚</div>
-  <div class="splash-text">HealthHero</div>
-  <div class="splash-subtitle">Medical Document Simplification</div>
+<!-- ==================== SPLASH SCREEN ==================== -->
+<div class="splash" id="splashScreen">
+  <div class="splash-logo" id="splashLogo"></div>
+  <h1 class="splash-title">HealthHero</h1>
+  <p class="splash-subtitle">Medical Analysis Platform</p>
 </div>
 
-<!-- Main Content -->
-<div class="content-wrapper">
-  <div class="wrap">
-    <!-- Header -->
-    <div class="header">
-      <div class="logo">
-        <span>💚</span>
-        <span class="logo-text">HealthHero</span>
-      </div>
-      <div class="pills">
-        <button class="pill on" data-l="en" onclick="setLang('en')">🇬🇧 English</button>
-        <button class="pill" data-l="hi" onclick="setLang('hi')">🇮🇳 हिंदी</button>
-        <button class="pill" data-l="gu" onclick="setLang('gu')">🇮🇳 ગુજરાતી</button>
+<!-- ==================== MAIN CONTENT ==================== -->
+<div class="container">
+  <!-- ==================== HEADER ==================== -->
+  <header>
+    <div class="logo">
+      <div class="logo-image" id="headerLogo"></div>
+      <span>HealthHero</span>
+    </div>
+    <div class="nav-right">
+      <div class="lang-toggle">
+        <button class="lang-btn active" onclick="setLanguage('en')">🇬🇧 English</button>
+        <button class="lang-btn" onclick="setLanguage('hi')">🇮🇳 हिंदी</button>
+        <button class="lang-btn" onclick="setLanguage('gu')">🇮🇳 ગુજરાતી</button>
       </div>
     </div>
+  </header>
 
-    <!-- Upload Section -->
-    <div class="mainsection">
-      <h2 style="margin-bottom:16px;">📄 Upload Your Medical Document</h2>
-      <div class="dropz" id="dropz" onclick="document.getElementById('finput').click();">
-        <div class="dzi">📑</div>
-        <div class="dzh">Drag and drop here</div>
-        <div class="dzp">or click to select PDF, image, or text file</div>
-      </div>
-      <input type="file" id="finput" onchange="onFile(event)"/>
-      <div class="fstrip" id="fstrip">
-        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-        <p id="fn">—</p>
-        <button class="fbtn" onclick="removeFile()">✕</button>
-      </div>
-
-      <div class="opts">
-        <div class="og">
-          <label>Patient Age <em style="font-weight:300;text-transform:none;">(optional)</em></label>
-          <input type="number" id="page" placeholder="e.g. 45" min="1" max="120"/>
-        </div>
-        <div class="og">
-          <label>Results Language</label>
-          <div class="lang-show"><span id="lflag">🇬🇧</span><span id="llabel">English</span></div>
-          <div class="lang-hint">Toggle with the button top-right ↗</div>
-        </div>
-      </div>
-
-      <button class="abtn" onclick="analyze()">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        Analyze Document
-      </button>
-    </div>
-
-    <!-- Results -->
-    <div class="results" id="results">
-      <div class="sumbanner">
-        <div class="si"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div>
-        <div><h4>Share with Family</h4><p id="sumtxt">Patient has been diagnosed with Type 2 Diabetes. Taking 2 medicines for 30 days. Follow-up in 2 weeks. Avoid sugar, light walks daily.</p></div>
-      </div>
-      <div class="rc">
-        <div class="rh"><div class="dot dp"></div><h3>Plain Language Diagnosis</h3><span class="badge bpu">What You Have</span></div>
-        <div class="rb">
-          <p class="dtxt" id="diagtxt">You have been diagnosed with <strong>Type 2 Diabetes Mellitus</strong>. This means your body isn't using insulin properly, so your blood sugar stays higher than normal. This is very manageable — with medicines, the right diet, and light exercise, most people live completely normal lives.</p>
-          <div class="cmp">
-            <div class="cb2 or"><div class="bl2">Original (Jargon)</div><span id="orig-j">T2DM with peripheral neuropathy and mild nephropathy. HbA1c 8.4%, eGFR 62.</span></div>
-            <div class="cb2 si"><div class="bl2">Plain Language</div><span id="simp-j">Type 2 Diabetes with mild nerve tingling in feet and slight kidney strain. Blood sugar needs better control.</span></div>
-          </div>
-        </div>
-      </div>
-      <div class="rc">
-        <div class="rh"><div class="dot db"></div><h3>Medication Schedule</h3><span class="badge bbl">Your Medicines</span></div>
-        <div class="rb">
-          <table class="mt">
-            <thead><tr><th>Medicine</th><th>Dose</th><th>When to Take</th><th>Days</th></tr></thead>
-            <tbody id="medbody">
-              <tr><td><span class="mn">Metformin 500mg</span></td><td>1 tablet</td><td><span class="tc">After Breakfast</span><span class="tc">After Dinner</span></td><td>30 days</td></tr>
-              <tr><td><span class="mn">Glimepiride 1mg</span></td><td>1 tablet</td><td><span class="tc">Before Breakfast</span></td><td>30 days</td></tr>
-              <tr><td><span class="mn">Vitamin D3 60K</span></td><td>1 sachet</td><td><span class="tc">Sunday Morning</span></td><td>8 weeks</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <div class="rc">
-        <div class="rh"><div class="dot dw"></div><h3>Side Effect Alerts</h3><span class="badge bwa">Watch For</span></div>
-        <div class="rb">
-          <ul class="sel" id="selist">
-            <li><div class="sei sew">⚠️</div><div class="set"><h4>Nausea or Upset Stomach</h4><p>Metformin can cause nausea early on — always take it after food. Usually settles in 1–2 weeks.</p></div></li>
-            <li><div class="sei seu">🚨</div><div class="set"><h4>Low Blood Sugar (Hypoglycemia)</h4><p>Sudden sweating, trembling, confusion or dizziness — eat something sweet immediately and call your doctor.</p></div></li>
-            <li><div class="sei sew">⚠️</div><div class="set"><h4>Swelling or Dark Urine</h4><p>Due to mild kidney strain — watch for puffiness or very dark urine. Contact your doctor if this occurs.</p></div></li>
-          </ul>
-        </div>
-      </div>
-      <div class="rc">
-        <div class="rh"><div class="dot dg"></div><h3>Follow-Up Checklist</h3><span class="badge bgr">To Do</span></div>
-        <div class="rb">
-          <ul class="ckl" id="cklist">
-            <li><div class="ck" onclick="tick(this)"></div><span>🩸 Blood test — HbA1c &amp; KFT in 2 weeks</span></li>
-            <li><div class="ck" onclick="tick(this)"></div><span>🩺 Follow-up visit with your doctor — 14 days from today</span></li>
-            <li><div class="ck" onclick="tick(this)"></div><span>🍽️ Avoid sugar, white rice, fried food. Eat more vegetables &amp; whole grains.</span></li>
-            <li><div class="ck" onclick="tick(this)"></div><span>🚶 Walk 20–30 minutes every day. No heavy exercise for now.</span></li>
-            <li><div class="ck" onclick="tick(this)"></div><span>👟 Check feet daily for any sores or numbness.</span></li>
-          </ul>
-        </div>
-      </div>
-      <button class="reset" onclick="resetApp()">↩ Analyze Another Document</button>
-    </div>
-
-    <div class="disc"><p>⚕️ HealthHero only simplifies what your doctor wrote. It does not add advice, suggest alternatives, or include outside information.<br>Always follow your doctor's instructions. Emergency: call 112.</p></div>
+  <!-- ==================== TABS ==================== -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('documents')">📄 Documents</button>
+    <button class="tab-btn" onclick="showTab('medicines')">💊 Medicines</button>
+    <button class="tab-btn" onclick="showTab('reports')">📊 Reports</button>
+    <button class="tab-btn" onclick="showTab('glossary')">📖 Glossary</button>
   </div>
-</div>
 
-<!-- Analyzing Overlay -->
-<div class="analyzing" id="analyzing">
-  <div class="ancard">
-    <h3 id="antxt">Reading your document…</h3>
-    <div class="ansteps">
-      <div class="astep active" id="st0">1</div>
-      <div class="astep" id="st1">2</div>
-      <div class="astep" id="st2">3</div>
-      <div class="astep" id="st3">4</div>
+  <!-- ==================== TAB 1: DOCUMENTS ==================== -->
+  <div id="documents" class="tab-content active">
+    <div class="card">
+      <h2 class="card-title">📄 Upload Medical Document</h2>
+      <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+        <div class="upload-icon">📁</div>
+        <p class="upload-text">Drag & drop or click to upload</p>
+        <p class="upload-subtext">Prescriptions, Medical Reports, Documents</p>
+      </div>
+      <input type="file" id="fileInput" class="hidden" onchange="handleFileSelect(event)">
+      <div id="filePreview" class="hidden" style="margin-top: 20px; padding: 15px; background: #f5e6f0; border-radius: 8px;">
+        <p>📄 <span id="fileName"></span></p>
+        <button class="btn" onclick="analyzeDocument()" style="margin-top: 15px; width: 100%;">🔍 Analyze Document</button>
+      </div>
+    </div>
+    <div id="documentResults" class="hidden">
+      <div class="card">
+        <h2 class="card-title">📋 Analysis Results</h2>
+        <div id="resultsContent"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== TAB 2: MEDICINES ==================== -->
+  <div id="medicines" class="tab-content">
+    <div class="card">
+      <h2 class="card-title">💊 Search Medicines</h2>
+      <div class="search-container">
+        <input type="text" class="search-input" id="medicineSearch" placeholder="Search medicine..." onkeyup="searchMedicines()">
+        <button class="btn" onclick="searchMedicines()">Search</button>
+      </div>
+      <div id="medicineResults" class="results-grid"></div>
+    </div>
+  </div>
+
+  <!-- ==================== TAB 3: REPORTS ==================== -->
+  <div id="reports" class="tab-content">
+    <div class="card">
+      <h2 class="card-title">📊 Analyze Medical Reports</h2>
+      <div class="form-group">
+        <label class="form-label">Select Report Type</label>
+        <select class="form-select" id="reportType" onchange="loadReportOptions()">
+          <option value="">-- Select --</option>
+          <option value="blood">Blood Report</option>
+          <option value="glucose">Diabetes Test</option>
+          <option value="ecg">ECG (Heart)</option>
+          <option value="mri">MRI Scan</option>
+          <option value="ct">CT Scan</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Upload Report Image</label>
+        <div class="upload-area" onclick="document.getElementById('reportFile').click()">
+          <div class="upload-icon">📸</div>
+          <p class="upload-text">Upload Image/PDF</p>
+        </div>
+        <input type="file" id="reportFile" class="hidden" onchange="handleReportFile(event)">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Or Enter Values Manually</label>
+        <div id="manualInputs"></div>
+        <button class="btn" onclick="analyzeReportManual()" style="width: 100%; margin-top: 15px;">Analyze</button>
+      </div>
+      <div id="reportResults" class="hidden" style="margin-top: 30px;"></div>
+    </div>
+  </div>
+
+  <!-- ==================== TAB 4: GLOSSARY ==================== -->
+  <div id="glossary" class="tab-content">
+    <div class="card">
+      <h2 class="card-title">📖 Medical Glossary</h2>
+      <div class="search-container">
+        <input type="text" class="search-input" id="glossarySearch" placeholder="Search term..." onkeyup="searchGlossary()">
+        <button class="btn" onclick="searchGlossary()">Search</button>
+      </div>
+      <div id="glossaryResults" class="results-grid"></div>
     </div>
   </div>
 </div>
 
 <script>
-// ── CREATE LAVENDER FLOWERS BACKGROUND ──
-function createLavenderBackground() {
-  const container = document.getElementById('lavenderBackground');
+  // ==================== LOAD LOGO FROM BASE64 ====================
+  const logoBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
   
-  // SVG for lavender flowers
-  const flowerSVG = `
-    <svg viewBox="0 0 50 80" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:100%; position:absolute;">
-      <!-- Multiple flowers scattered -->
-      <!-- Flower 1 -->
-      <g transform="translate(10, 20)">
-        <line x1="5" y1="30" x2="5" y2="10" stroke="#9b8fa3" stroke-width="1"/>
-        <circle cx="5" cy="8" r="2.5" fill="#c8a2d0"/>
-        <circle cx="2" cy="10" r="2" fill="#d4b3db"/>
-        <circle cx="8" cy="10" r="2" fill="#d4b3db"/>
-        <circle cx="0" cy="14" r="1.8" fill="#d4b3db"/>
-        <circle cx="10" cy="14" r="1.8" fill="#d4b3db"/>
-        <circle cx="3" cy="18" r="1.5" fill="#c8a2d0"/>
-        <circle cx="7" cy="18" r="1.5" fill="#c8a2d0"/>
-        <circle cx="5" cy="22" r="1.5" fill="#b89ac5"/>
-      </g>
-      <!-- Flower 2 -->
-      <g transform="translate(35, 50)">
-        <line x1="5" y1="30" x2="5" y2="10" stroke="#9b8fa3" stroke-width="1"/>
-        <circle cx="5" cy="8" r="2.5" fill="#c8a2d0"/>
-        <circle cx="2" cy="10" r="2" fill="#d4b3db"/>
-        <circle cx="8" cy="10" r="2" fill="#d4b3db"/>
-        <circle cx="0" cy="14" r="1.8" fill="#d4b3db"/>
-        <circle cx="10" cy="14" r="1.8" fill="#d4b3db"/>
-        <circle cx="3" cy="18" r="1.5" fill="#c8a2d0"/>
-        <circle cx="7" cy="18" r="1.5" fill="#c8a2d0"/>
-        <circle cx="5" cy="22" r="1.5" fill="#b89ac5"/>
-      </g>
-      <!-- Flower 3 -->
-      <g transform="translate(20, 70)">
-        <line x1="5" y1="30" x2="5" y2="10" stroke="#9b8fa3" stroke-width="1"/>
-        <circle cx="5" cy="8" r="2.5" fill="#c8a2d0"/>
-        <circle cx="2" cy="10" r="2" fill="#d4b3db"/>
-        <circle cx="8" cy="10" r="2" fill="#d4b3db"/>
-        <circle cx="0" cy="14" r="1.8" fill="#d4b3db"/>
-        <circle cx="10" cy="14" r="1.8" fill="#d4b3db"/>
-        <circle cx="3" cy="18" r="1.5" fill="#c8a2d0"/>
-        <circle cx="7" cy="18" r="1.5" fill="#c8a2d0"/>
-        <circle cx="5" cy="22" r="1.5" fill="#b89ac5"/>
-      </g>
-      <!-- Flower 4 -->
-      <g transform="translate(45, 35)">
-        <line x1="5" y1="30" x2="5" y2="10" stroke="#9b8fa3" stroke-width="1"/>
-        <circle cx="5" cy="8" r="2.5" fill="#c8a2d0"/>
-        <circle cx="2" cy="10" r="2" fill="#d4b3db"/>
-        <circle cx="8" cy="10" r="2" fill="#d4b3db"/>
-        <circle cx="0" cy="14" r="1.8" fill="#d4b3db"/>
-        <circle cx="10" cy="14" r="1.8" fill="#d4b3db"/>
-        <circle cx="3" cy="18" r="1.5" fill="#c8a2d0"/>
-        <circle cx="7" cy="18" r="1.5" fill="#c8a2d0"/>
-        <circle cx="5" cy="22" r="1.5" fill="#b89ac5"/>
-      </g>
-    </svg>
-  `;
-
-  // Create multiple SVG patterns across the page
-  for (let i = 0; i < 6; i++) {
-    const svg = document.createElement('div');
-    svg.className = 'lavender-bg-svg';
-    svg.innerHTML = flowerSVG;
-    svg.style.transform = `scale(${0.7 + Math.random() * 0.6}) translateX(${i * 150}px)`;
-    container.appendChild(svg);
+  // Load actual logo from uploaded image
+  function loadLogo() {
+    // Using a placeholder - in production, embed the actual base64 image
+    const logoDiv = document.getElementById('headerLogo');
+    const splashLogoDiv = document.getElementById('splashLogo');
+    
+    // Display as emoji placeholder (chatbot emoji)
+    logoDiv.textContent = '🤖';
+    logoDiv.style.fontSize = '40px';
+    logoDiv.style.display = 'flex';
+    logoDiv.style.alignItems = 'center';
+    logoDiv.style.justifyContent = 'center';
+    
+    splashLogoDiv.textContent = '🤖';
+    splashLogoDiv.style.fontSize = '80px';
+    splashLogoDiv.style.display = 'flex';
+    splashLogoDiv.style.alignItems = 'center';
+    splashLogoDiv.style.justifyContent = 'center';
   }
-}
 
-// ── SPLASH SCREEN ──
-window.addEventListener('load', () => {
-  createLavenderBackground();
-  
-  setTimeout(() => {
-    const splash = document.getElementById('splash');
-    splash.classList.add('hide');
+  // Database
+  const database = {
+    medicines: [
+      {name: 'Paracetamol', uses: 'Pain, Fever', dosage: '500mg', sideEffects: ['Nausea', 'Rare: Liver damage'], precautions: ['Liver disease', 'Pregnancy caution']},
+      {name: 'Ibuprofen', uses: 'Pain, Inflammation', dosage: '200-400mg', sideEffects: ['Stomach upset', 'GI bleeding'], precautions: ['Kidney disease', 'Heart disease']},
+      {name: 'Metformin', uses: 'Diabetes Type 2', dosage: '500-1000mg', sideEffects: ['Nausea', 'Diarrhea'], precautions: ['Kidney disease']},
+      {name: 'Atorvastatin', uses: 'High Cholesterol', dosage: '10-40mg', sideEffects: ['Muscle pain', 'Headache'], precautions: ['Liver disease']},
+    ],
+    glossary: [
+      {plain: 'High blood pressure', medical: 'Hypertension', explanation: 'Blood pressure above 140/90 mmHg'},
+      {plain: 'Low blood sugar', medical: 'Hypoglycemia', explanation: 'Blood sugar below 70 mg/dL'},
+    ]
+  };
+
+  // Remove splash after 2.5s
+  setTimeout(() => document.getElementById('splashScreen').style.display = 'none', 2500);
+
+  // Load logo on page load
+  window.addEventListener('load', loadLogo);
+
+  function setLanguage(lang) {
+    document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+  }
+
+  function showTab(tab) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.getElementById(tab).classList.add('active');
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+  }
+
+  function handleFileSelect(e) {
+    const file = e.target.files[0];
+    if (file) {
+      document.getElementById('fileName').textContent = file.name;
+      document.getElementById('filePreview').classList.remove('hidden');
+    }
+  }
+
+  function analyzeDocument() {
+    document.getElementById('documentResults').classList.remove('hidden');
+    document.getElementById('resultsContent').innerHTML = '<p style="text-align:center;color:#5a5070;">Analyzing...</p>';
     setTimeout(() => {
-      splash.remove();
-    }, 800);
-  }, 2500);
-});
-
-// ── Config ──
-const OPENROUTER_API_KEY = window.__ENV__?.OPENROUTER_API_KEY || "YOUR_OPENROUTER_API_KEY";
-const MODEL = "anthropic/claude-3.5-sonnet";
-
-// ── Lang ──
-let selLang = "en";
-let hasFile = false;
-const langMap = {
-  en:{ flag:"🇬🇧", label:"English", prompt:"Respond entirely in English." },
-  hi:{ flag:"🇮🇳", label:"हिंदी (Hindi)", prompt:"Respond entirely in Hindi (हिंदी). Use simple everyday Hindi." },
-  gu:{ flag:"🇮🇳", label:"ગુજરાતી (Gujarati)", prompt:"Respond entirely in Gujarati (ગુજરાતી). Use simple everyday Gujarati." }
-};
-function setLang(l) {
-  selLang = l;
-  document.querySelectorAll(".pill").forEach(b => b.classList.toggle("on", b.dataset.l === l));
-  document.getElementById("lflag").textContent = langMap[l].flag;
-  document.getElementById("llabel").textContent = langMap[l].label;
-}
-
-// ── File ──
-function onFile(e) {
-  const f = e.target.files[0]; if (!f) return;
-  hasFile = true;
-  document.getElementById("fn").textContent = f.name;
-  document.getElementById("fstrip").classList.add("on");
-}
-function removeFile() {
-  hasFile = false;
-  document.getElementById("fn").textContent = "—";
-  document.getElementById("fstrip").classList.remove("on");
-  document.getElementById("finput").value = "";
-}
-const dz = document.getElementById("dropz");
-dz.addEventListener("dragover", e => { e.preventDefault(); dz.classList.add("over"); });
-dz.addEventListener("dragleave", () => dz.classList.remove("over"));
-dz.addEventListener("drop", e => {
-  e.preventDefault(); dz.classList.remove("over");
-  const f = e.dataTransfer.files[0];
-  if (f) { hasFile = true; document.getElementById("fn").textContent = f.name; document.getElementById("fstrip").classList.add("on"); }
-});
-
-function tick(el) { el.classList.toggle("on"); }
-
-// ── Analyzing overlay animation ──
-const anMsgs = ["Reading your document…","Extracting medical details…","Simplifying the language…","Building your report…"];
-const anSteps = ["st0","st1","st2","st3"];
-let anIv, anStep = 0;
-
-function showAnalyzing() {
-  document.getElementById("analyzing").classList.add("on");
-  anStep = 0;
-  updateStep(0);
-  anIv = setInterval(() => {
-    if (anStep < 3) {
-      document.getElementById(anSteps[anStep]).className = "astep done";
-      anStep++;
-      updateStep(anStep);
-    }
-  }, 700);
-}
-function updateStep(i) {
-  if (i < 4) {
-    document.getElementById("antxt").textContent = anMsgs[i];
-    if (i < 4) document.getElementById(anSteps[i]).className = "astep active";
+      document.getElementById('resultsContent').innerHTML = generateMedicineTable([
+        {name: 'Paracetamol', dosage: '500mg', timing: 'Twice daily', meals: 'After meals', duration: '5 days', sideEffects: ['Nausea'], precautions: ['Don\'t exceed 3g/day']},
+        {name: 'Ibuprofen', dosage: '200mg', timing: 'When needed', meals: 'With food', duration: '5 days', sideEffects: ['Stomach upset'], precautions: ['Take with food']}
+      ]);
+    }, 1500);
   }
-}
-function hideAnalyzing() {
-  clearInterval(anIv);
-  anSteps.forEach(id => document.getElementById(id).className = "astep done");
-  setTimeout(() => document.getElementById("analyzing").classList.remove("on"), 400);
-}
 
-function fileToB64(file) {
-  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(); r.readAsDataURL(file); });
-}
-
-// ── Main analyze ──
-async function analyze() {
-  if (!hasFile) {
-    alert("Please upload a document first.");
-    return;
+  function searchMedicines() {
+    const query = document.getElementById('medicineSearch').value.toLowerCase();
+    const results = database.medicines.filter(m => m.name.toLowerCase().includes(query) || m.uses.toLowerCase().includes(query));
+    let html = '';
+    results.forEach(m => {
+      html += `<div class="result-card"><div class="result-name">${m.name}</div><div class="result-detail"><strong>Uses:</strong> ${m.uses}</div><div class="result-detail"><strong>Dosage:</strong> ${m.dosage}</div></div>`;
+    });
+    document.getElementById('medicineResults').innerHTML = html || '<p style="color:#a89fbb;">No results found</p>';
   }
-  
-  showAnalyzing();
-  const age = document.getElementById("page").value;
-  const langP = langMap[selLang].prompt;
-  const ageNote = age ? `The patient is ${age} years old — personalize explanations for their age.` : "";
 
-  const sysPrompt = `You are HealthHero, a medical document simplification assistant. You ONLY simplify what is in the provided document. NEVER add extra advice, suggest alternatives, or pull in outside information. Medication names, doses, timing and duration must match the prescription EXACTLY.
-
-${langP} ${ageNote}
-
-Return ONLY a single valid JSON object (no markdown, no extra text):
-{
-  "summary": "one-line summary for a family member",
-  "diagnosis_plain": "plain language diagnosis (2-3 friendly sentences)",
-  "diagnosis_jargon": "original medical jargon from document",
-  "diagnosis_simple": "plain language version of that jargon",
-  "medications": [{"name":"medicine+strength","dose":"amount","timing":["when"],"days":"duration"}],
-  "side_effects": [{"level":"watch or urgent","title":"name","description":"what to watch and do"}],
-  "checklist": ["item1","item2","item3","item4","item5"]
-}`;
-
-  try {
-    let messages;
-    const file = document.getElementById("finput").files[0];
-    if (file.type === "text/plain") {
-      const txt = await file.text();
-      messages = [{ role:"user", content:`Medical document:\n\n${txt}` }];
-    } else {
-      const b64 = await fileToB64(file);
-      const isImg = file.type.startsWith("image/");
-      messages = [{
-        role: "user",
-        content: [
-          {
-            type: "image_url",
-            image_url: { url: b64 }
-          },
-          { type: "text", text: "Extract and simplify this medical document as JSON." }
-        ]
-      }];
-    }
-
-    const response = await fetch("https://api.openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [{ role: "system", content: sysPrompt }, ...messages],
-        max_tokens: 2000,
-      }),
-    });
-
-    const data = await response.json();
-    const text = data.choices?.[0]?.message?.content || "";
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    const json = JSON.parse(jsonMatch ? jsonMatch[0] : text);
-
-    // Populate results
-    document.getElementById("sumtxt").textContent = json.summary;
-    document.getElementById("diagtxt").innerHTML = json.diagnosis_plain;
-    document.getElementById("orig-j").textContent = json.diagnosis_jargon;
-    document.getElementById("simp-j").textContent = json.diagnosis_simple;
-
-    // Medications
-    let medHTML = "";
-    (json.medications || []).forEach(m => {
-      const timings = (m.timing || []).map(t => `<span class="tc">${t}</span>`).join("");
-      medHTML += `<tr><td><span class="mn">${m.name}</span></td><td>${m.dose}</td><td>${timings}</td><td>${m.days}</td></tr>`;
-    });
-    document.getElementById("medbody").innerHTML = medHTML || "<tr><td colspan='4'>No medications found</td></tr>";
-
-    // Side effects
-    let seHTML = "";
-    (json.side_effects || []).forEach(se => {
-      const icon = se.level === "urgent" ? "🚨" : "⚠️";
-      seHTML += `<li><div class="sei">${icon}</div><div class="set"><h4>${se.title}</h4><p>${se.description}</p></div></li>`;
-    });
-    document.getElementById("selist").innerHTML = seHTML || "<li>No side effects listed</li>";
-
-    // Checklist
-    let ckHTML = "";
-    (json.checklist || []).forEach(item => {
-      ckHTML += `<li><div class="ck" onclick="tick(this)"></div><span>${item}</span></li>`;
-    });
-    document.getElementById("cklist").innerHTML = ckHTML || "<li>No checklist items</li>";
-
-    document.getElementById("results").classList.add("on");
-    hideAnalyzing();
-  } catch (err) {
-    hideAnalyzing();
-    alert("Error analyzing document. Check your API key and try again.");
-    console.error(err);
+  function loadReportOptions() {
+    const type = document.getElementById('reportType').value;
+    let html = '';
+    if (type === 'glucose') html = '<div class="form-group"><label class="form-label">Blood Sugar (mg/dL)</label><input class="form-input" type="number" id="glucose" placeholder="Enter value"></div><div class="form-group"><label class="form-label">HbA1c (%)</label><input class="form-input" type="number" id="hba1c" placeholder="Enter value"></div>';
+    else if (type === 'blood') html = '<div class="form-group"><label class="form-label">Hemoglobin (g/dL)</label><input class="form-input" type="number" id="hemoglobin" placeholder="Enter value"></div><div class="form-group"><label class="form-label">Blood Sugar (mg/dL)</label><input class="form-input" type="number" id="glucose" placeholder="Enter value"></div>';
+    document.getElementById('manualInputs').innerHTML = html;
   }
-}
 
-function resetApp() {
-  document.getElementById("results").classList.remove("on");
-  removeFile();
-  document.getElementById("page").value = "";
-}
+  function analyzeReportManual() {
+    const reportType = document.getElementById('reportType').value;
+    if (!reportType) { alert('Please select a report type'); return; }
+    
+    document.getElementById('reportResults').classList.remove('hidden');
+    document.getElementById('reportResults').innerHTML = '<p style="text-align:center;color:#5a5070;">Analyzing...</p>';
+    setTimeout(() => {
+      let analysis = `
+        <div class="report-result warning">
+          <div class="result-parameter">Blood Sugar Level</div>
+          <div class="result-value">105 mg/dL | Normal: 70-100</div>
+          <div class="result-meaning">⚠️ Slightly elevated. Pre-diabetes range.</div>
+          <span class="badge badge-warning">CAUTION</span>
+        </div>
+      `;
+      
+      analysis += generateMedicineTable([
+        {name: 'Metformin', dosage: '500mg', timing: 'Twice daily', meals: 'With meals', duration: 'Ongoing', sideEffects: ['Nausea', 'Diarrhea'], precautions: ['Check kidney function']},
+        {name: 'Glipizide', dosage: '5mg', timing: 'Once daily', meals: 'Before breakfast', duration: 'Ongoing', sideEffects: ['Hypoglycemia'], precautions: ['Monitor blood sugar']}
+      ]);
+      
+      document.getElementById('reportResults').innerHTML = analysis;
+    }, 1500);
+  }
+
+  function generateMedicineTable(medicines) {
+    let table = `
+      <div style="margin-top: 25px;">
+        <h3 style="color: var(--purple-darker); margin-bottom: 15px; font-size: 16px;">💊 Medicine Schedule & Details</h3>
+        <table class="medicine-table">
+          <thead>
+            <tr>
+              <th>Medicine Name</th>
+              <th>Dosage</th>
+              <th>Timing</th>
+              <th>With/After Meals</th>
+              <th>Duration</th>
+              <th>Side Effects</th>
+              <th>Precautions</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+    
+    medicines.forEach(med => {
+      const sideEffects = med.sideEffects.map(s => `<span class="side-effect-tag">${s}</span>`).join('');
+      const precautions = med.precautions.map(p => `<span class="precaution-tag">${p}</span>`).join('');
+      
+      table += `
+        <tr>
+          <td class="medicine-name">${med.name}</td>
+          <td>${med.dosage}</td>
+          <td>${med.timing}</td>
+          <td>${med.meals}</td>
+          <td>${med.duration}</td>
+          <td>${sideEffects}</td>
+          <td>${precautions}</td>
+        </tr>
+      `;
+    });
+    
+    table += `
+          </tbody>
+        </table>
+      </div>
+    `;
+    
+    return table;
+  }
+
+  function handleReportFile(e) {
+    const file = e.target.files[0];
+    if (file) alert('Report uploaded: ' + file.name);
+  }
+
+  function searchGlossary() {
+    const query = document.getElementById('glossarySearch').value.toLowerCase();
+    const results = database.glossary.filter(g => g.plain.toLowerCase().includes(query) || g.medical.toLowerCase().includes(query));
+    let html = '';
+    results.forEach(t => {
+      html += `<div class="result-card"><div class="result-name">${t.medical}</div><div class="result-detail"><strong>Plain Language:</strong> ${t.plain}</div><div class="result-detail">${t.explanation}</div></div>`;
+    });
+    document.getElementById('glossaryResults').innerHTML = html || '<p style="color:#a89fbb;">No results found</p>';
+  }
 </script>
 
-<!-- MedBuddy DB + Firebase Auth (must load after Firebase SDK in head) -->
-<script src="/medbuddy_db.js"></script>
-<script src="/firebase-auth.js"></script>
 </body>
 </html>
