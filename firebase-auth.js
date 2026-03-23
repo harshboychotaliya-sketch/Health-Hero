@@ -3,7 +3,7 @@
 // Real Auth: Google · Email+OTP · Phone OTP — powered by Clerk
 // ═══════════════════════════════════════════════════════════════
 
-const CLERK_PUBLISHABLE_KEY = "sk_test_Nt5NGClCQd78fxbM5n4CRn0BMMIUR3gp3x0b1xr7uM";
+const CLERK_PUBLISHABLE_KEY = "pk_test_bmljZS1kb2dmaXNoLTU4LmNsZXJrLmFjY291bnRzLmRldiQ";
 
 // ── Load Clerk SDK ────────────────────────────────────────────
 (function loadClerk() {
